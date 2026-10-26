@@ -1,0 +1,27 @@
+# Optional Fly.io config. The process honors PORT and defaults to 4721.
+# Rename `app` before `fly deploy`. Do not put API keys in this file.
+
+app = "si-stocktool"
+primary_region = "ams"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 4721
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/health"
+    timeout = "2s"
+
+[env]
+  PORT = "4721"
+  NODE_ENV = "production"
