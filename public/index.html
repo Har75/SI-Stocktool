@@ -32,41 +32,52 @@
       <section class="panel" aria-labelledby="account-title">
         <h2 id="account-title">Account</h2>
         <p class="hint">
-          Sign up or log in with your email and a password of at least 10 characters. The server stores only a hash of
-          the password and keeps the browser session in an HTTP-only cookie.
+          Log in for an existing account. New account opens a separate sign-up page. Passwords are at least 10
+          characters. The server stores only a hash and keeps the browser session in an HTTP-only cookie.
         </p>
         <p id="account-status" class="status" role="status"></p>
         <div id="auth-forms">
-          <form id="login-form" class="row">
-            <label for="login-email">Email</label>
-            <input id="login-email" name="email" type="email" autocomplete="username" maxlength="254" required />
-            <label for="login-password">Password</label>
-            <input
-              id="login-password"
-              name="password"
-              type="password"
-              autocomplete="current-password"
-              minlength="10"
-              maxlength="72"
-              required
-            />
-            <button type="submit">Log in</button>
-          </form>
-          <form id="signup-form" class="row">
-            <label for="signup-email">New email</label>
-            <input id="signup-email" name="email" type="email" autocomplete="username" maxlength="254" required />
-            <label for="signup-password">New password</label>
-            <input
-              id="signup-password"
-              name="password"
-              type="password"
-              autocomplete="new-password"
-              minlength="10"
-              maxlength="72"
-              required
-            />
-            <button type="submit">Sign up</button>
-          </form>
+          <div id="login-page">
+            <form id="login-form" class="row">
+              <label for="login-email">Email</label>
+              <input id="login-email" name="email" type="email" autocomplete="username" maxlength="254" required />
+              <label for="login-password">Password</label>
+              <input
+                id="login-password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                minlength="10"
+                maxlength="72"
+                required
+              />
+              <button type="submit">Log in</button>
+            </form>
+            <div class="auth-switch">
+              <button type="button" id="show-signup" class="secondary">New account</button>
+            </div>
+          </div>
+          <div id="signup-page" hidden>
+            <h3 id="signup-title">New account</h3>
+            <form id="signup-form" class="row">
+              <label for="signup-email">Email</label>
+              <input id="signup-email" name="email" type="email" autocomplete="username" maxlength="254" required />
+              <label for="signup-password">Password</label>
+              <input
+                id="signup-password"
+                name="password"
+                type="password"
+                autocomplete="new-password"
+                minlength="10"
+                maxlength="72"
+                required
+              />
+              <button type="submit">Sign up</button>
+            </form>
+            <div class="auth-switch">
+              <button type="button" id="show-login" class="secondary">Log in</button>
+            </div>
+          </div>
         </div>
         <div id="session-panel" hidden>
           <button type="button" id="logout">Log out</button>

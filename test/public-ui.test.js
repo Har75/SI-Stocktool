@@ -29,7 +29,16 @@ test("desk sections are separate tabs", () => {
   for (const id of ["login-form", "signup-form", "logout", "upgrade-actions", "connection-form", "api-key"]) {
     assert.match(account, new RegExp(`id="${id}"`));
   }
-  assert.match(account, /Sign up or log in/);
+  assert.match(account, /New account opens a separate sign-up page/);
+  assert.match(account, /id="login-page"/);
+  assert.match(account, /id="signup-page"[^>]*hidden/);
+  assert.match(account, /id="show-signup"/);
+  assert.match(account, /id="show-login"/);
+  const loginPage = between('id="login-page"', 'id="signup-page"');
+  assert.match(loginPage, /id="login-form"/);
+  assert.match(loginPage, />Log in</);
+  assert.match(loginPage, />New account</);
+  assert.doesNotMatch(loginPage, /id="signup-form"/);
   assert.match(account, /Pro is required for Stock Analyzer/);
   assert.match(account, /Paste an Alpha Vantage key/);
   assert.doesNotMatch(account, /id="admin-panel"/);

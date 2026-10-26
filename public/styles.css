@@ -127,6 +127,15 @@ h2 {
   margin-top: 0.8rem;
 }
 
+.auth-switch {
+  margin-top: 0.9rem;
+}
+
+#signup-title {
+  margin: 0.2rem 0 0;
+  font-size: 1.15rem;
+}
+
 label {
   flex: 1 1 100%;
   font-family: "Avenir Next", "Segoe UI", sans-serif;

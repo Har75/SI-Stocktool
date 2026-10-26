@@ -8,6 +8,8 @@ const adminTab = document.querySelector("#tab-admin");
 const adminBody = document.querySelector("#admin-body");
 const adminStatus = document.querySelector("#admin-status");
 const authForms = document.querySelector("#auth-forms");
+const loginPage = document.querySelector("#login-page");
+const signupPage = document.querySelector("#signup-page");
 const sessionPanel = document.querySelector("#session-panel");
 const bookBody = document.querySelector("#book-body");
 const bookTotal = document.querySelector("#book-total");
@@ -411,12 +413,20 @@ async function reanalyze(body) {
   }
 }
 
+function showAuthPage(which) {
+  const signup = which === "signup";
+  loginPage.hidden = signup;
+  signupPage.hidden = !signup;
+}
+
 function applyAccess() {
   const signedIn = Boolean(me);
   authForms.hidden = signedIn;
   sessionPanel.hidden = !signedIn;
-  if (!signedIn) accountStatus.textContent = "You are not signed in.";
-  else {
+  if (!signedIn) {
+    showAuthPage("login");
+    accountStatus.textContent = "You are not signed in.";
+  } else {
     const plan = me.plan === "pro" ? "Pro" : "Free";
     const role = me.role === "admin" ? " · admin" : "";
     accountStatus.textContent = `Signed in as ${me.email} · ${plan}${role}.`;
@@ -471,6 +481,16 @@ document.querySelector("#signup-form").addEventListener("submit", (event) => {
     document.querySelector("#signup-email").value,
     document.querySelector("#signup-password").value,
   );
+});
+
+document.querySelector("#show-signup").addEventListener("click", () => {
+  showAuthPage("signup");
+  accountStatus.textContent = "Create a new account.";
+});
+
+document.querySelector("#show-login").addEventListener("click", () => {
+  showAuthPage("login");
+  accountStatus.textContent = "You are not signed in.";
 });
 
 document.querySelector("#logout").addEventListener("click", async () => {
