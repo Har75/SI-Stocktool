@@ -16,6 +16,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background:
@@ -59,6 +63,44 @@ footer p {
   color: var(--muted);
 }
 
+.tablist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0 0 1rem;
+  padding: 0.35rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.tablist .tab {
+  background: transparent;
+  color: var(--pine);
+  border: 1px solid transparent;
+  padding: 0.5rem 0.85rem;
+}
+
+.tablist .tab:hover {
+  background: #efe6d8;
+  color: var(--ink);
+}
+
+.tablist .tab[aria-selected="true"] {
+  background: var(--pine);
+  color: #f7f3ea;
+}
+
+.tablist .tab[aria-selected="true"]:hover {
+  background: var(--pine-deep);
+  color: #f7f3ea;
+}
+
+.tablist .tab:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
 .panel {
   background: var(--card);
   border: 1px solid var(--line);
@@ -66,6 +108,10 @@ footer p {
   padding: 1.1rem 1.2rem 1.25rem;
   margin: 0 0 1rem;
   box-shadow: 0 12px 30px rgba(70, 48, 20, 0.04);
+}
+
+.tab-panel > .panel:last-child {
+  margin-bottom: 0;
 }
 
 h2 {
@@ -79,6 +125,15 @@ h2 {
   gap: 0.6rem;
   align-items: end;
   margin-top: 0.8rem;
+}
+
+.auth-switch {
+  margin-top: 0.9rem;
+}
+
+#signup-title {
+  margin: 0.2rem 0 0;
+  font-size: 1.15rem;
 }
 
 label {
@@ -248,6 +303,10 @@ code {
 }
 
 @media (max-width: 700px) {
+  .tablist .tab {
+    flex: 1 1 auto;
+  }
+
   .pillar {
     grid-template-columns: 1fr auto;
   }
