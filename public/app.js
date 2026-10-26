@@ -107,7 +107,7 @@ function renderScore(result) {
   scoreBox.hidden = false;
   scoreLabel.textContent = `${result.mode === "replay" ? "Replay" : "Live"} · ${result.ticker} · ${result.label || ""}`;
   scoreComposite.textContent =
-    result.composite == null ? "No composite — snapshot has no scored pillars." : `Composite ${result.composite} / 100`;
+    result.composite == null ? "No composite — snapshot has no scored dimensions." : `Composite ${result.composite} / 100`;
   scoreComposite.className = "composite";
   scoreDisclaimer.textContent = result.disclaimer || "";
   pillarList.replaceChildren();

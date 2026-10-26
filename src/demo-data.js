@@ -1,6 +1,6 @@
 /**
  * Fictional sample book and offline case studies.
- * Figures are play-money marks for the UI and the replay calculator.
+ * Figures are play-money marks for the UI and Stock analyzer replay.
  * They are not an account, a statement, or live market data.
  */
 
@@ -8,7 +8,7 @@ export const SAMPLE_DISCLAIMER =
   "Fictional sample book for the desk UI. Tickers are sample labels and euro marks are invented. This is a classroom tape, not an account statement.";
 
 export const SCORE_DISCLAIMER =
-  "Educational 8-pillar case-study score. Not investment advice, not a recommendation, and not a valuation of a real portfolio.";
+  "Educational Stock analyzer score. Not investment advice, not a recommendation, and not a valuation of a real portfolio.";
 
 export const SAMPLE_BOOK = {
   id: "sample-book",
@@ -60,7 +60,7 @@ export const SAMPLE_BOOK = {
 };
 
 const studyDisclaimer =
-  "Offline replay uses invented fundamentals so the 8-pillar calculator can be walked through without an API key.";
+  "Offline replay uses invented fundamentals so the Stock analyzer can be walked through without an API key.";
 
 function study(ticker, label, fundamentals) {
   return {
