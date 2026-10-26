@@ -4,6 +4,7 @@ import test from "node:test";
 
 const html = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
 const app = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
+const css = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
 
 function between(startMarker, endMarker) {
   const start = html.indexOf(startMarker);
@@ -64,4 +65,5 @@ test("the client does not embed a shared Alpha Vantage key", () => {
   assert.match(app, /headers\["x-api-key"\] = key/);
   assert.match(app, /setAdminTab\(false\)/);
   assert.match(app, /setAdminTab\(true\)/);
+  assert.match(css, /\[hidden\]\s*\{[^}]*display:\s*none\s*!important/s);
 });
