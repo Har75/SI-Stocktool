@@ -18,6 +18,17 @@
     </header>
 
     <main>
+      <div class="tablist" id="desk-tabs" role="tablist" aria-label="Desk sections">
+        <button type="button" class="tab" id="tab-account" role="tab" data-tab="account" aria-controls="view-account" aria-selected="true">Account</button>
+        <button type="button" class="tab" id="tab-portfolio" role="tab" data-tab="portfolio" aria-controls="view-portfolio" aria-selected="false" tabindex="-1">Portfolio</button>
+        <button type="button" class="tab" id="tab-search" role="tab" data-tab="search" aria-controls="view-search" aria-selected="false" tabindex="-1">Search</button>
+        <button type="button" class="tab" id="tab-quotes" role="tab" data-tab="quotes" aria-controls="view-quotes" aria-selected="false" tabindex="-1">Quotes</button>
+        <button type="button" class="tab" id="tab-analyzer" role="tab" data-tab="analyzer" aria-controls="view-analyzer" aria-selected="false" tabindex="-1">Analyzer</button>
+        <button type="button" class="tab" id="tab-watchlist" role="tab" data-tab="watchlist" aria-controls="view-watchlist" aria-selected="false" tabindex="-1">Watchlist</button>
+        <button type="button" class="tab" id="tab-admin" role="tab" data-tab="admin" aria-controls="view-admin" aria-selected="false" tabindex="-1" hidden>Admin</button>
+      </div>
+
+      <div id="view-account" class="tab-panel" role="tabpanel" aria-labelledby="tab-account">
       <section class="panel" aria-labelledby="account-title">
         <h2 id="account-title">Account</h2>
         <p class="hint">
@@ -72,29 +83,6 @@
         <p id="upgrade-status" class="status" role="status"></p>
       </section>
 
-      <section class="panel" id="admin-panel" hidden aria-labelledby="admin-title">
-        <h2 id="admin-title">Admin</h2>
-        <p class="hint">
-          Admins can list accounts, switch a user between Free and Pro, and block sign-in. A blocked user is signed
-          out and cannot log in.
-        </p>
-        <div class="table-wrap">
-          <table class="plain-table">
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Plan</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="admin-body"></tbody>
-          </table>
-        </div>
-        <p id="admin-status" class="status" role="status"></p>
-      </section>
-
       <section class="panel" aria-labelledby="connection-title">
         <h2 id="connection-title">Connection</h2>
         <p class="hint">
@@ -109,7 +97,9 @@
         </form>
         <p id="connection-status" class="status" role="status"></p>
       </section>
+      </div>
 
+      <div id="view-portfolio" class="tab-panel" role="tabpanel" aria-labelledby="tab-portfolio" hidden>
       <section class="panel" aria-labelledby="book-title">
         <h2 id="book-title">Portfolio</h2>
         <p class="hint">
@@ -139,7 +129,9 @@
           </table>
         </div>
       </section>
+      </div>
 
+      <div id="view-search" class="tab-panel" role="tabpanel" aria-labelledby="tab-search" hidden>
       <section class="panel" aria-labelledby="search-title">
         <h2 id="search-title">Search</h2>
         <p class="hint">
@@ -153,7 +145,9 @@
         </form>
         <ul id="search-results" class="results"></ul>
       </section>
+      </div>
 
+      <div id="view-quotes" class="tab-panel" role="tabpanel" aria-labelledby="tab-quotes" hidden>
       <section class="panel" aria-labelledby="quote-title">
         <h2 id="quote-title">Live quotes</h2>
         <p class="hint">
@@ -167,7 +161,9 @@
         </form>
         <ul id="quote-results" class="results"></ul>
       </section>
+      </div>
 
+      <div id="view-analyzer" class="tab-panel" role="tabpanel" aria-labelledby="tab-analyzer" hidden>
       <section class="panel" aria-labelledby="pillar-title">
         <h2 id="pillar-title">Stock Analyzer</h2>
         <p class="hint">
@@ -201,7 +197,9 @@
           </div>
         </div>
       </section>
+      </div>
 
+      <div id="view-watchlist" class="tab-panel" role="tabpanel" aria-labelledby="tab-watchlist" hidden>
       <section class="panel" aria-labelledby="watch-title">
         <h2 id="watch-title">Watchlist</h2>
         <p class="hint">
@@ -235,6 +233,32 @@
           <p id="watch-status" class="status" role="status"></p>
         </div>
       </section>
+      </div>
+
+      <div id="view-admin" class="tab-panel" role="tabpanel" aria-labelledby="tab-admin" hidden>
+      <section class="panel" id="admin-panel" hidden aria-labelledby="admin-title">
+        <h2 id="admin-title">Admin</h2>
+        <p class="hint">
+          Admins can list accounts, switch a user between Free and Pro, and block sign-in. A blocked user is signed
+          out and cannot log in.
+        </p>
+        <div class="table-wrap">
+          <table class="plain-table">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Plan</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="admin-body"></tbody>
+          </table>
+        </div>
+        <p id="admin-status" class="status" role="status"></p>
+      </section>
+      </div>
     </main>
 
     <footer>

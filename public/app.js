@@ -4,6 +4,7 @@ const accountStatus = document.querySelector("#account-status");
 const upgradeStatus = document.querySelector("#upgrade-status");
 const upgradeActions = document.querySelector("#upgrade-actions");
 const adminPanel = document.querySelector("#admin-panel");
+const adminTab = document.querySelector("#tab-admin");
 const adminBody = document.querySelector("#admin-body");
 const adminStatus = document.querySelector("#admin-status");
 const authForms = document.querySelector("#auth-forms");
@@ -112,6 +113,51 @@ function button(label, className) {
   if (className) element.className = className;
   return element;
 }
+
+const tabButtons = [...document.querySelectorAll("#desk-tabs [role='tab']")];
+
+function selectTab(id) {
+  const available = tabButtons.filter((tab) => !tab.hidden);
+  const target = available.find((tab) => tab.dataset.tab === id) || available[0];
+  if (!target) return;
+  for (const tab of tabButtons) {
+    const selected = tab === target;
+    tab.setAttribute("aria-selected", selected ? "true" : "false");
+    tab.tabIndex = selected ? 0 : -1;
+    const panel = document.getElementById(tab.getAttribute("aria-controls"));
+    if (panel) panel.hidden = !selected;
+  }
+}
+
+function setAdminTab(visible) {
+  adminTab.hidden = !visible;
+  adminPanel.hidden = !visible;
+  if (!visible) {
+    adminBody.replaceChildren();
+    if (adminTab.getAttribute("aria-selected") === "true") selectTab("account");
+  }
+}
+
+document.querySelector("#desk-tabs").addEventListener("click", (event) => {
+  const tab = event.target.closest("[role='tab']");
+  if (!tab || tab.hidden) return;
+  selectTab(tab.dataset.tab);
+});
+
+document.querySelector("#desk-tabs").addEventListener("keydown", (event) => {
+  if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
+  const tabs = tabButtons.filter((tab) => !tab.hidden);
+  const current = tabs.findIndex((tab) => tab.getAttribute("aria-selected") === "true");
+  if (current < 0) return;
+  event.preventDefault();
+  let next = current;
+  if (event.key === "ArrowRight") next = (current + 1) % tabs.length;
+  if (event.key === "ArrowLeft") next = (current - 1 + tabs.length) % tabs.length;
+  if (event.key === "Home") next = 0;
+  if (event.key === "End") next = tabs.length - 1;
+  tabs[next].focus();
+  selectTab(tabs[next].dataset.tab);
+});
 
 document.querySelector("#connection-form").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -263,11 +309,10 @@ async function updateUser(id, body) {
 
 async function loadAdmin() {
   if (!me || me.role !== "admin") {
-    adminPanel.hidden = true;
-    adminBody.replaceChildren();
+    setAdminTab(false);
     return;
   }
-  adminPanel.hidden = false;
+  setAdminTab(true);
   try {
     const result = await api("/api/admin/users");
     renderAdmin(result.users);
@@ -437,7 +482,7 @@ document.querySelector("#logout").addEventListener("click", async () => {
   me = null;
   csrfToken = "";
   applyAccess();
-  adminPanel.hidden = true;
+  setAdminTab(false);
   await loadWatchlist();
 });
 
