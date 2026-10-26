@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SI StockTool</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="mast">
+      <p class="eyebrow">Sample research desk</p>
+      <h1>SI StockTool</h1>
+      <p class="lede">
+        Search, quotes, and an eight-pillar calculator for case studies. The sample book is fictional play money.
+        Live calls go through this server to Alpha Vantage. Your key stays in this browser tab.
+      </p>
+    </header>
+
+    <main>
+      <section class="panel" aria-labelledby="connection-title">
+        <h2 id="connection-title">Connection</h2>
+        <p class="hint">
+          Paste an Alpha Vantage key to score live symbols. Leave it blank on local Docker only when
+          <code>ALPHA_VANTAGE_API_KEY</code> is set and <code>NODE_ENV</code> is not production.
+          Public hosting requires the key from the browser. It is not written to server logs.
+        </p>
+        <form id="connection-form" class="row">
+          <label for="api-key">Alpha Vantage key</label>
+          <input id="api-key" name="apiKey" type="password" autocomplete="off" spellcheck="false" />
+          <button type="submit">Test connection</button>
+          <button type="button" id="clear-key">Clear</button>
+        </form>
+        <p id="connection-status" class="status" role="status"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="book-title">
+        <h2 id="book-title">Sample book</h2>
+        <p id="book-disclaimer" class="hint"></p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Label</th>
+                <th>Shares</th>
+                <th>Cost</th>
+                <th>Sample mark</th>
+                <th>Sample value</th>
+              </tr>
+            </thead>
+            <tbody id="book-body"></tbody>
+            <tfoot>
+              <tr>
+                <th colspan="5">Sample notionals</th>
+                <th id="book-total"></th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="search-title">
+        <h2 id="search-title">Search</h2>
+        <form id="search-form" class="row">
+          <label for="keywords">Keywords</label>
+          <input id="keywords" name="keywords" type="search" maxlength="40" placeholder="nokia" />
+          <button type="submit">Search</button>
+        </form>
+        <ul id="search-results" class="results"></ul>
+      </section>
+
+      <section class="panel" aria-labelledby="quote-title">
+        <h2 id="quote-title">Live quotes</h2>
+        <p class="hint">At most 20 tickers. Sample marks above stay on the page until a live quote returns.</p>
+        <form id="quote-form" class="row">
+          <label for="tickers">Tickers</label>
+          <input id="tickers" name="tickers" type="text" value="SPCX, NOK, AIFS, QOMP, 4MMR" />
+          <button type="submit">Fetch quotes</button>
+        </form>
+        <ul id="quote-results" class="results"></ul>
+      </section>
+
+      <section class="panel" aria-labelledby="pillar-title">
+        <h2 id="pillar-title">Eight-pillar calculator</h2>
+        <p class="hint">
+          Replay uses invented fundamentals for SPCX, NOK, AIFS, QOMP, and 4MMR. Live mode reads Alpha Vantage
+          overview and statements for any symbol. Scores are teaching bands, not a buy or sell view.
+        </p>
+        <form id="analyze-form" class="row">
+          <label for="analyze-ticker">Ticker</label>
+          <input id="analyze-ticker" name="ticker" type="text" value="NOK" maxlength="12" />
+          <button type="submit">Score live</button>
+          <button type="button" id="replay">Replay case study</button>
+        </form>
+        <div id="score" class="score" hidden>
+          <p id="score-label"></p>
+          <p id="score-composite"></p>
+          <p id="score-disclaimer" class="hint"></p>
+          <ol id="pillar-list"></ol>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>SI StockTool sample desk. Market data, when requested, is third-party and can be delayed or incomplete.</p>
+    </footer>
+    <script src="/app.js"></script>
+  </body>
+</html>
