@@ -58,16 +58,22 @@ export function scrub(value, secret) {
   return out;
 }
 
+export function normalizeTicker(input) {
+  const ticker = String(input ?? "")
+    .trim()
+    .toUpperCase();
+  if (!/^[A-Z0-9.\-]{1,12}$/.test(ticker)) return "";
+  return ticker;
+}
+
 export function normalizeTickers(input) {
   if (!Array.isArray(input)) return { error: "tickers must be an array" };
   const tickers = [];
   const seen = new Set();
   for (const item of input) {
-    const ticker = String(item ?? "")
-      .trim()
-      .toUpperCase();
-    if (!ticker) continue;
-    if (!/^[A-Z0-9.\-]{1,12}$/.test(ticker)) {
+    if (!String(item ?? "").trim()) continue;
+    const ticker = normalizeTicker(item);
+    if (!ticker) {
       return { error: "Invalid ticker" };
     }
     if (seen.has(ticker)) continue;

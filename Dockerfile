@@ -11,6 +11,10 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY src ./src
 COPY public ./public
 
+RUN mkdir -p /app/data && chown node:node /app/data
+
+ENV DATA_DIR=/app/data
+
 USER node
 
 EXPOSE 4721
