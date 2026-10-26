@@ -1,22 +1,46 @@
 import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import bcrypt from "bcryptjs";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import Stripe from "stripe";
 import { alphaVantage, quoteFromGlobal, searchMatches, upstreamProblem } from "./alphavantage.js";
+import {
+  bcryptCost,
+  clearSessionCookie,
+  createSession,
+  csrfOk,
+  dummyPasswordHash,
+  ensureAdmin,
+  isElevated,
+  loadAuth,
+  newUser,
+  normalizeEmail,
+  passwordIssue,
+  publicUser,
+  rememberSession,
+  sessionCookie,
+  sessionTtlMs,
+} from "./auth.js";
+import { applyStripeEvent, checkoutConfig, isStripeRedirect, webhookConfig } from "./billing.js";
 import { CASE_STUDIES, SAMPLE_BOOK, SCORE_DISCLAIMER, listCaseStudies } from "./demo-data.js";
 import {
   apiLimiter,
   buildCors,
+  normalizeTicker,
   normalizeTickers,
   requestLogLine,
   resolveApiKey,
   scrub,
 } from "./http-security.js";
 import { fundamentalsFromAlphaVantage, scorePillars } from "./pillars.js";
+import { FileStore, MemoryStore } from "./store.js";
+import { MAX_WATCHLIST, applyRescore, cleanText, parseComposite, publicWatchItem, upsertWatchItem } from "./watchlist.js";
 
 const publicDir = join(dirname(fileURLToPath(import.meta.url)), "..", "public");
+const USER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function requireKey(res, resolved) {
   if (resolved.ok) return true;
@@ -31,6 +55,10 @@ function upstreamError(res, apiKey, problem, status = 502) {
   res.status(status).json({ error: "Alpha Vantage request failed", detail });
 }
 
+function noStore(res) {
+  res.set("Cache-Control", "no-store");
+}
+
 async function loadFundamentals(fetchImpl, apiKey, ticker) {
   const [overview, income, balance, cashflow] = await Promise.all([
     alphaVantage(fetchImpl, apiKey, { function: "OVERVIEW", symbol: ticker }),
@@ -41,7 +69,32 @@ async function loadFundamentals(fetchImpl, apiKey, ticker) {
   return { overview, income, balance, cashflow };
 }
 
-export function createApp({ env = process.env, fetchImpl = globalThis.fetch } = {}) {
+function issueSession(res, env, token) {
+  const maxAge = Math.floor(sessionTtlMs(env) / 1000);
+  res.setHeader("Set-Cookie", sessionCookie(token, env, maxAge));
+  noStore(res);
+}
+
+export function createApp({
+  env = process.env,
+  fetchImpl = globalThis.fetch,
+  store: storeOverride,
+  stripeClient,
+} = {}) {
+  const store = storeOverride || (env.DATA_DIR ? new FileStore(env.DATA_DIR) : new MemoryStore());
+  const ready = Promise.resolve(store.ready).then(() => ensureAdmin(store, env));
+  let stripeSingleton = stripeClient || null;
+
+  function getStripe(secretKey) {
+    if (stripeSingleton) return stripeSingleton;
+    stripeSingleton = new Stripe(secretKey, {
+      maxNetworkRetries: 2,
+      timeout: 15000,
+      appInfo: { name: "si-stocktool" },
+    });
+    return stripeSingleton;
+  }
+
   const app = express();
   app.disable("x-powered-by");
   if (env.NODE_ENV === "production" || env.TRUST_PROXY === "1") {
@@ -60,13 +113,13 @@ export function createApp({ env = process.env, fetchImpl = globalThis.fetch } = 
           objectSrc: ["'none'"],
           baseUri: ["'none'"],
           frameAncestors: ["'none'"],
+          formAction: ["'self'", "https://checkout.stripe.com", "https://billing.stripe.com"],
         },
       },
       crossOriginEmbedderPolicy: false,
     }),
   );
   app.use(cors(buildCors(env)));
-  app.use(express.json({ limit: "32kb" }));
 
   app.use((req, res, next) => {
     const started = Date.now();
@@ -75,6 +128,47 @@ export function createApp({ env = process.env, fetchImpl = globalThis.fetch } = 
     });
     next();
   });
+
+  app.use(async (_req, res, next) => {
+    try {
+      await ready;
+      next();
+    } catch {
+      console.log(JSON.stringify({ msg: "store unavailable" }));
+      res.status(500).json({ error: "Internal error" });
+    }
+  });
+
+  async function gate(req, res, { pro = false, admin = false, csrf = false } = {}) {
+    const auth = await loadAuth(store, req);
+    if (!auth) {
+      noStore(res);
+      res.status(401).json({ error: "Sign in required" });
+      return null;
+    }
+    if (auth.user.blocked) {
+      noStore(res);
+      res.setHeader("Set-Cookie", clearSessionCookie(env));
+      res.status(403).json({ error: "Account blocked" });
+      return null;
+    }
+    if (csrf && !csrfOk(req, auth)) {
+      noStore(res);
+      res.status(403).json({ error: "CSRF check failed" });
+      return null;
+    }
+    if (admin && auth.user.role !== "admin") {
+      noStore(res);
+      res.status(403).json({ error: "Admin only" });
+      return null;
+    }
+    if (pro && !isElevated(auth.user)) {
+      noStore(res);
+      res.status(403).json({ error: "Pro plan required" });
+      return null;
+    }
+    return auth;
+  }
 
   app.get("/favicon.ico", (_req, res) => {
     res.redirect(302, "/favicon.svg");
@@ -92,10 +186,273 @@ export function createApp({ env = process.env, fetchImpl = globalThis.fetch } = 
     res.json({ studies: listCaseStudies(), disclaimer: SCORE_DISCLAIMER });
   });
 
+  const webhookLimiter = apiLimiter(env, "RATE_LIMIT_WEBHOOK", 120);
+  app.post(
+    "/api/stripe/webhook",
+    webhookLimiter,
+    express.raw({ type: "application/json", limit: "1mb" }),
+    async (req, res) => {
+      const config = webhookConfig(env);
+      if (!config) {
+        res.status(503).json({ error: "Stripe webhook is not configured" });
+        return;
+      }
+      const signature = req.get("stripe-signature") || "";
+      if (!signature || !Buffer.isBuffer(req.body)) {
+        res.status(400).json({ error: "Invalid Stripe signature" });
+        return;
+      }
+      let event;
+      try {
+        event = getStripe(config.secretKey).webhooks.constructEvent(req.body, signature, config.webhookSecret);
+      } catch {
+        console.log(JSON.stringify({ msg: "stripe signature rejected" }));
+        res.status(400).json({ error: "Invalid Stripe signature" });
+        return;
+      }
+      try {
+        const result = await store.update((state) => applyStripeEvent(state, event));
+        console.log(JSON.stringify({ msg: "stripe event", type: event.type, applied: Boolean(result?.applied) }));
+        res.json({ received: true });
+      } catch {
+        console.log(JSON.stringify({ msg: "stripe event failed", type: event.type }));
+        res.status(500).json({ error: "Internal error" });
+      }
+    },
+  );
+
+  app.use(express.json({ limit: "32kb" }));
+
   const searchLimiter = apiLimiter(env, "RATE_LIMIT_SEARCH", 60);
   const quotesLimiter = apiLimiter(env, "RATE_LIMIT_QUOTES", 30);
   const analyzeLimiter = apiLimiter(env, "RATE_LIMIT_ANALYZE", 10);
   const testLimiter = apiLimiter(env, "RATE_LIMIT_TEST_CONNECTION", 10);
+  const signupLimiter = apiLimiter(env, "RATE_LIMIT_SIGNUP", 5);
+  const loginLimiter = apiLimiter(env, "RATE_LIMIT_LOGIN", 10);
+  const watchlistLimiter = apiLimiter(env, "RATE_LIMIT_WATCHLIST", 30);
+  const reanalyzeLimiter = apiLimiter(env, "RATE_LIMIT_REANALYZE", 10);
+  const adminLimiter = apiLimiter(env, "RATE_LIMIT_ADMIN", 30);
+  const billingLimiter = apiLimiter(env, "RATE_LIMIT_BILLING", 10);
+
+  app.post("/api/auth/signup", signupLimiter, async (req, res) => {
+    const email = normalizeEmail(req.body?.email);
+    const issue = passwordIssue(req.body?.password);
+    if (!email || issue) {
+      noStore(res);
+      res.status(400).json({ error: issue || "Enter a valid email" });
+      return;
+    }
+    const seen = await store.read();
+    if (seen.users.some((user) => user.email === email)) {
+      noStore(res);
+      res.status(409).json({ error: "An account with that email already exists" });
+      return;
+    }
+    const adminEmail = normalizeEmail(env.ADMIN_EMAIL || "");
+    const role = email === adminEmail ? "admin" : "user";
+    const passwordHash = await bcrypt.hash(req.body.password, bcryptCost(env));
+    const created = await store.update((state) => {
+      if (state.users.some((user) => user.email === email)) return null;
+      const user = newUser({ email, passwordHash, role, plan: role === "admin" ? "pro" : "free" });
+      state.users.push(user);
+      const opened = createSession(user.id, env);
+      rememberSession(state, opened.session);
+      return { user, token: opened.token, csrfToken: opened.csrfToken };
+    });
+    if (!created) {
+      noStore(res);
+      res.status(409).json({ error: "An account with that email already exists" });
+      return;
+    }
+    issueSession(res, env, created.token);
+    res.status(201).json({
+      user: publicUser(created.user),
+      csrfToken: created.csrfToken,
+      token: created.token,
+    });
+  });
+
+  app.post("/api/auth/login", loginLimiter, async (req, res) => {
+    const email = normalizeEmail(req.body?.email);
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    const state = await store.read();
+    const user = email ? state.users.find((item) => item.email === email) : null;
+    const hash = user?.passwordHash || (await dummyPasswordHash(bcryptCost(env)));
+    let match = false;
+    if (password && Buffer.byteLength(password) <= 72) {
+      try {
+        match = await bcrypt.compare(password, hash);
+      } catch {
+        match = false;
+      }
+    }
+    if (!user || !match) {
+      noStore(res);
+      res.status(401).json({ error: "Invalid email or password" });
+      return;
+    }
+    if (user.blocked) {
+      noStore(res);
+      res.status(403).json({ error: "Account blocked" });
+      return;
+    }
+    const opened = createSession(user.id, env);
+    const saved = await store.update((draft) => {
+      const current = draft.users.find((item) => item.id === user.id);
+      if (!current || current.blocked) return null;
+      rememberSession(draft, opened.session);
+      return current;
+    });
+    if (!saved) {
+      noStore(res);
+      res.status(403).json({ error: "Account blocked" });
+      return;
+    }
+    issueSession(res, env, opened.token);
+    res.json({ user: publicUser(saved), csrfToken: opened.csrfToken, token: opened.token });
+  });
+
+  app.post("/api/auth/logout", loginLimiter, async (req, res) => {
+    const auth = await loadAuth(store, req);
+    if (auth && !csrfOk(req, auth)) {
+      noStore(res);
+      res.status(403).json({ error: "CSRF check failed" });
+      return;
+    }
+    if (auth) {
+      await store.update((state) => {
+        state.sessions = state.sessions.filter((session) => session.id !== auth.session.id);
+      });
+    }
+    res.setHeader("Set-Cookie", clearSessionCookie(env));
+    noStore(res);
+    res.json({ ok: true });
+  });
+
+  app.get("/api/auth/me", async (req, res) => {
+    noStore(res);
+    const auth = await loadAuth(store, req);
+    if (!auth) {
+      res.json({ user: null });
+      return;
+    }
+    res.json({ user: publicUser(auth.user), csrfToken: auth.session.csrfToken });
+  });
+
+  app.post("/api/billing/checkout", billingLimiter, async (req, res) => {
+    const auth = await gate(req, res, { csrf: true });
+    if (!auth) return;
+    const config = checkoutConfig(env);
+    if (!config) {
+      res.status(503).json({ error: "Stripe Checkout is not configured" });
+      return;
+    }
+    try {
+      const session = await getStripe(config.secretKey).checkout.sessions.create({
+        mode: "subscription",
+        line_items: [{ price: config.price, quantity: 1 }],
+        success_url: `${config.base}/?billing=success`,
+        cancel_url: `${config.base}/?billing=cancel`,
+        client_reference_id: auth.user.id,
+        customer: auth.user.stripeCustomerId || undefined,
+        customer_email: auth.user.stripeCustomerId ? undefined : auth.user.email,
+        metadata: { userId: auth.user.id },
+        subscription_data: { metadata: { userId: auth.user.id } },
+      });
+      if (!isStripeRedirect(session.url)) {
+        console.log(JSON.stringify({ msg: "stripe checkout failed" }));
+        res.status(502).json({ error: "Stripe checkout failed" });
+        return;
+      }
+      noStore(res);
+      res.json({ url: session.url });
+    } catch {
+      console.log(JSON.stringify({ msg: "stripe checkout failed" }));
+      res.status(502).json({ error: "Stripe checkout failed" });
+    }
+  });
+
+  app.post("/api/billing/portal", billingLimiter, async (req, res) => {
+    const auth = await gate(req, res, { csrf: true });
+    if (!auth) return;
+    const config = checkoutConfig(env);
+    if (!config) {
+      res.status(503).json({ error: "Stripe billing portal is not configured" });
+      return;
+    }
+    if (!/^cus_[A-Za-z0-9]+$/.test(auth.user.stripeCustomerId || "")) {
+      res.status(400).json({ error: "No Stripe customer yet. Subscribe first." });
+      return;
+    }
+    try {
+      const portal = await getStripe(config.secretKey).billingPortal.sessions.create({
+        customer: auth.user.stripeCustomerId,
+        return_url: `${config.base}/`,
+      });
+      if (!isStripeRedirect(portal.url)) {
+        console.log(JSON.stringify({ msg: "stripe portal failed" }));
+        res.status(502).json({ error: "Stripe billing portal failed" });
+        return;
+      }
+      noStore(res);
+      res.json({ url: portal.url });
+    } catch {
+      console.log(JSON.stringify({ msg: "stripe portal failed" }));
+      res.status(502).json({ error: "Stripe billing portal failed" });
+    }
+  });
+
+  app.get("/api/admin/users", adminLimiter, async (req, res) => {
+    const auth = await gate(req, res, { admin: true });
+    if (!auth) return;
+    const state = await store.read();
+    noStore(res);
+    res.json({ users: state.users.map((user) => publicUser(user, { admin: true })) });
+  });
+
+  app.post("/api/admin/users/:id", adminLimiter, async (req, res) => {
+    const auth = await gate(req, res, { admin: true, csrf: true });
+    if (!auth) return;
+    const id = USER_ID.test(String(req.params.id || "")) ? String(req.params.id) : "";
+    if (!id) {
+      res.status(400).json({ error: "user id is invalid" });
+      return;
+    }
+    const plan = req.body?.plan;
+    const blocked = req.body?.blocked;
+    if (plan != null && plan !== "free" && plan !== "pro") {
+      res.status(400).json({ error: "plan must be free or pro" });
+      return;
+    }
+    if (blocked != null && typeof blocked !== "boolean") {
+      res.status(400).json({ error: "blocked must be a boolean" });
+      return;
+    }
+    if (plan == null && blocked == null) {
+      res.status(400).json({ error: "Nothing to update" });
+      return;
+    }
+    if (blocked === true && id === auth.user.id) {
+      res.status(400).json({ error: "You cannot block your own account" });
+      return;
+    }
+    const updated = await store.update((state) => {
+      const user = state.users.find((item) => item.id === id);
+      if (!user) return null;
+      if (plan === "free" || plan === "pro") user.plan = plan;
+      if (typeof blocked === "boolean") {
+        user.blocked = blocked;
+        if (blocked) state.sessions = state.sessions.filter((session) => session.userId !== user.id);
+      }
+      return publicUser(user, { admin: true });
+    });
+    if (!updated) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    noStore(res);
+    res.json({ user: updated });
+  });
 
   app.get("/api/search", searchLimiter, async (req, res) => {
     const keywords = String(req.query.keywords || "").trim();
@@ -156,10 +513,10 @@ export function createApp({ env = process.env, fetchImpl = globalThis.fetch } = 
   });
 
   app.post("/api/analyze", analyzeLimiter, async (req, res) => {
-    const ticker = String(req.body?.ticker || "")
-      .trim()
-      .toUpperCase();
-    if (!/^[A-Z0-9.\-]{1,12}$/.test(ticker)) {
+    const auth = await gate(req, res, { pro: true, csrf: true });
+    if (!auth) return;
+    const ticker = normalizeTicker(req.body?.ticker);
+    if (!ticker) {
       res.status(400).json({ error: "ticker is required" });
       return;
     }
@@ -170,6 +527,7 @@ export function createApp({ env = process.env, fetchImpl = globalThis.fetch } = 
         res.status(404).json({ error: "No sample case study for that ticker" });
         return;
       }
+      noStore(res);
       res.json({
         mode: "replay",
         ticker,
@@ -195,6 +553,7 @@ export function createApp({ env = process.env, fetchImpl = globalThis.fetch } = 
         balance: loaded.balance,
         cash: loaded.cashflow,
       });
+      noStore(res);
       res.json({
         mode: "live",
         ticker,
@@ -206,6 +565,170 @@ export function createApp({ env = process.env, fetchImpl = globalThis.fetch } = 
       console.log(JSON.stringify({ msg: "upstream failed", path: req.path }));
       res.status(502).json({ error: "Upstream request failed" });
     }
+  });
+
+  app.get("/api/watchlist", watchlistLimiter, async (req, res) => {
+    const auth = await gate(req, res, { pro: true });
+    if (!auth) return;
+    const state = await store.read();
+    const items = (state.watchlists[auth.user.id] || []).slice(0, MAX_WATCHLIST).map(publicWatchItem);
+    noStore(res);
+    res.json({ items });
+  });
+
+  app.post("/api/watchlist", watchlistLimiter, async (req, res) => {
+    const auth = await gate(req, res, { pro: true, csrf: true });
+    if (!auth) return;
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+    const ticker = normalizeTicker(body.ticker);
+    if (!ticker) {
+      res.status(400).json({ error: "ticker is required" });
+      return;
+    }
+    const input = { ticker };
+    if (Object.prototype.hasOwnProperty.call(body, "label")) {
+      const label = cleanText(body.label, 80);
+      if (label == null) {
+        res.status(400).json({ error: "label is invalid" });
+        return;
+      }
+      if (label) input.label = label;
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "note")) {
+      const note = cleanText(body.note, 280);
+      if (note == null) {
+        res.status(400).json({ error: "note is invalid" });
+        return;
+      }
+      input.note = note;
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "composite")) {
+      const composite = parseComposite(body.composite);
+      if (!composite.ok) {
+        res.status(400).json({ error: "composite must be an integer from 0 to 100" });
+        return;
+      }
+      input.composite = composite.value;
+    }
+    const nowIso = new Date().toISOString();
+    const saved = await store.update((state) => {
+      const current = state.watchlists[auth.user.id] || [];
+      const result = upsertWatchItem(current, input, nowIso);
+      if (result.error) return result;
+      state.watchlists[auth.user.id] = result.items;
+      return { item: publicWatchItem(result.item) };
+    });
+    if (saved.error) {
+      res.status(400).json({ error: saved.error });
+      return;
+    }
+    noStore(res);
+    res.status(201).json(saved);
+  });
+
+  app.delete("/api/watchlist/:ticker", watchlistLimiter, async (req, res) => {
+    const auth = await gate(req, res, { pro: true, csrf: true });
+    if (!auth) return;
+    const ticker = normalizeTicker(req.params.ticker);
+    if (!ticker) {
+      res.status(400).json({ error: "ticker is required" });
+      return;
+    }
+    const removed = await store.update((state) => {
+      const current = state.watchlists[auth.user.id] || [];
+      if (!current.some((item) => item.ticker === ticker)) return false;
+      state.watchlists[auth.user.id] = current.filter((item) => item.ticker !== ticker);
+      return true;
+    });
+    if (!removed) {
+      res.status(404).json({ error: "Ticker is not on the watchlist" });
+      return;
+    }
+    noStore(res);
+    res.json({ ok: true });
+  });
+
+  app.post("/api/watchlist/reanalyze", reanalyzeLimiter, async (req, res) => {
+    const auth = await gate(req, res, { pro: true, csrf: true });
+    if (!auth) return;
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+    if (body.all != null && body.all !== true && body.all !== false) {
+      res.status(400).json({ error: "all must be a boolean" });
+      return;
+    }
+    const all = body.all === true;
+    const ticker = body.ticker == null || body.ticker === "" ? "" : normalizeTicker(body.ticker);
+    if (body.ticker != null && body.ticker !== "" && !ticker) {
+      res.status(400).json({ error: "ticker is required" });
+      return;
+    }
+    if (all && ticker) {
+      res.status(400).json({ error: "Send either ticker or all, not both" });
+      return;
+    }
+    if (!all && !ticker) {
+      res.status(400).json({ error: "ticker or all is required" });
+      return;
+    }
+    const state = await store.read();
+    const items = (state.watchlists[auth.user.id] || []).slice(0, MAX_WATCHLIST);
+    if (!all && !items.some((item) => item.ticker === ticker)) {
+      res.status(404).json({ error: "Ticker is not on the watchlist" });
+      return;
+    }
+    const targets = all ? items : items.filter((item) => item.ticker === ticker);
+    if (targets.length === 0) {
+      noStore(res);
+      res.json({ items: items.map(publicWatchItem), results: [] });
+      return;
+    }
+    const resolved = resolveApiKey(req, env);
+    if (!requireKey(res, resolved)) return;
+
+    const scores = [];
+    const results = [];
+    for (const item of targets) {
+      try {
+        const loaded = await loadFundamentals(fetchImpl, resolved.key, item.ticker);
+        const problem = upstreamProblem(loaded.overview);
+        if (problem && !loaded.overview.Symbol) {
+          results.push({
+            ticker: item.ticker,
+            ok: false,
+            error: scrub(String(problem), resolved.key).slice(0, 300),
+          });
+          continue;
+        }
+        const fundamentals = fundamentalsFromAlphaVantage({
+          overview: loaded.overview,
+          income: loaded.income,
+          balance: loaded.balance,
+          cash: loaded.cashflow,
+        });
+        const scored = scorePillars(fundamentals);
+        const rawName = String(fundamentals.name || item.label || item.ticker).slice(0, 80);
+        const label = cleanText(rawName, 80) || item.ticker;
+        const nowIso = new Date().toISOString();
+        scores.push({ ticker: item.ticker, composite: scored.composite, label, nowIso });
+        results.push({ ticker: item.ticker, ok: true, composite: scored.composite });
+      } catch {
+        console.log(JSON.stringify({ msg: "upstream failed", path: req.path }));
+        results.push({ ticker: item.ticker, ok: false, error: "Upstream request failed" });
+      }
+    }
+
+    const saved = await store.update((draft) => {
+      const latest = (draft.watchlists[auth.user.id] || []).slice(0, MAX_WATCHLIST);
+      const byTicker = new Map(scores.map((row) => [row.ticker, row]));
+      const next = latest.map((item) => {
+        const row = byTicker.get(item.ticker);
+        return row ? applyRescore(item, row) : item;
+      });
+      draft.watchlists[auth.user.id] = next;
+      return next.map(publicWatchItem);
+    });
+    noStore(res);
+    res.json({ items: saved, results });
   });
 
   app.post("/api/test-connection", testLimiter, async (req, res) => {
@@ -253,10 +776,12 @@ export function createApp({ env = process.env, fetchImpl = globalThis.fetch } = 
 
 export function start(env = process.env) {
   const port = Number(env.PORT) || 4721;
-  const app = createApp({ env });
+  const merged = { ...env };
+  if (!merged.DATA_DIR) merged.DATA_DIR = join(process.cwd(), "data");
+  const app = createApp({ env: merged });
   const server = createServer(app);
   server.listen(port, "0.0.0.0", () => {
-    console.log(JSON.stringify({ msg: "listening", port, nodeEnv: env.NODE_ENV || "development" }));
+    console.log(JSON.stringify({ msg: "listening", port, nodeEnv: merged.NODE_ENV || "development" }));
   });
   return server;
 }

@@ -1,18 +1,18 @@
 /**
- * Fictional sample book and offline case studies.
+ * Fictional portfolio and offline case studies.
  * Figures are play-money marks for the UI and Stock analyzer replay.
  * They are not an account, a statement, or live market data.
  */
 
 export const SAMPLE_DISCLAIMER =
-  "Fictional sample book for the desk UI. Tickers are sample labels and euro marks are invented. This is a classroom tape, not an account statement.";
+  "Fictional portfolio for the desk UI. Tickers are sample labels and euro marks are invented. This is a classroom tape, not an account statement.";
 
 export const SCORE_DISCLAIMER =
   "Educational Stock analyzer score. Not investment advice, not a recommendation, and not a valuation of a real portfolio.";
 
 export const SAMPLE_BOOK = {
   id: "sample-book",
-  title: "Fictional sample book",
+  title: "Fictional portfolio",
   disclaimer: SAMPLE_DISCLAIMER,
   currency: "EUR",
   positions: [

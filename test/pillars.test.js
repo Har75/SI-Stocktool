@@ -3,7 +3,7 @@ import test from "node:test";
 import { CASE_STUDIES, SAMPLE_BOOK } from "../src/demo-data.js";
 import { fundamentalsFromAlphaVantage, scorePillars } from "../src/pillars.js";
 
-test("sample book is a small fictional tape", () => {
+test("portfolio tape is a small fictional sample", () => {
   const tickers = SAMPLE_BOOK.positions.map((position) => position.ticker);
   assert.deepEqual(tickers, ["SPCX", "NOK", "AIFS", "QOMP", "4MMR"]);
   const total = SAMPLE_BOOK.positions.reduce(
@@ -13,7 +13,8 @@ test("sample book is a small fictional tape", () => {
   assert.ok(total > 0);
   assert.ok(total < 10_000);
   const text = JSON.stringify(SAMPLE_BOOK).toLowerCase();
-  assert.match(SAMPLE_BOOK.disclaimer, /fictional sample book/i);
+  assert.match(SAMPLE_BOOK.disclaimer, /fictional portfolio/i);
+  assert.match(SAMPLE_BOOK.disclaimer, /sample labels/i);
   assert.equal(text.includes("million"), false);
   assert.equal(text.includes("private wealth"), false);
 });

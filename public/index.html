@@ -12,18 +12,94 @@
       <p class="eyebrow">Sample research desk</p>
       <h1>SI StockTool</h1>
       <p class="lede">
-        Search, quotes, and a Stock analyzer for case studies. The sample book is fictional play money.
+        Search, quotes, and a Stock analyzer for case studies. Portfolio marks are fictional play money.
         Live calls go through this server to Alpha Vantage. Your key stays in this browser tab.
       </p>
     </header>
 
     <main>
+      <section class="panel" aria-labelledby="account-title">
+        <h2 id="account-title">Account</h2>
+        <p class="hint">
+          Sign up or log in with your email and a password of at least 10 characters. The server stores only a hash of
+          the password and keeps the browser session in an HTTP-only cookie.
+        </p>
+        <p id="account-status" class="status" role="status"></p>
+        <div id="auth-forms">
+          <form id="login-form" class="row">
+            <label for="login-email">Email</label>
+            <input id="login-email" name="email" type="email" autocomplete="username" maxlength="254" required />
+            <label for="login-password">Password</label>
+            <input
+              id="login-password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              minlength="10"
+              maxlength="72"
+              required
+            />
+            <button type="submit">Log in</button>
+          </form>
+          <form id="signup-form" class="row">
+            <label for="signup-email">New email</label>
+            <input id="signup-email" name="email" type="email" autocomplete="username" maxlength="254" required />
+            <label for="signup-password">New password</label>
+            <input
+              id="signup-password"
+              name="password"
+              type="password"
+              autocomplete="new-password"
+              minlength="10"
+              maxlength="72"
+              required
+            />
+            <button type="submit">Sign up</button>
+          </form>
+        </div>
+        <div id="session-panel" hidden>
+          <button type="button" id="logout">Log out</button>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="upgrade-title">
+        <h2 id="upgrade-title">Upgrade</h2>
+        <p class="hint">
+          Pro is required for Stock Analyzer and the watchlist. Upgrade opens Stripe Checkout; canceling the
+          subscription, or a failed payment, sets the plan back to Free.
+        </p>
+        <div id="upgrade-actions" class="row"></div>
+        <p id="upgrade-status" class="status" role="status"></p>
+      </section>
+
+      <section class="panel" id="admin-panel" hidden aria-labelledby="admin-title">
+        <h2 id="admin-title">Admin</h2>
+        <p class="hint">
+          Admins can list accounts, switch a user between Free and Pro, and block sign-in. A blocked user is signed
+          out and cannot log in.
+        </p>
+        <div class="table-wrap">
+          <table class="plain-table">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Plan</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="admin-body"></tbody>
+          </table>
+        </div>
+        <p id="admin-status" class="status" role="status"></p>
+      </section>
+
       <section class="panel" aria-labelledby="connection-title">
         <h2 id="connection-title">Connection</h2>
         <p class="hint">
-          Paste an Alpha Vantage key to score live symbols. Leave it blank on local Docker only when
-          <code>ALPHA_VANTAGE_API_KEY</code> is set and <code>NODE_ENV</code> is not production.
-          Public hosting requires the key from the browser. It is not written to server logs.
+          Paste an Alpha Vantage key for live search, quotes, and scoring. It stays in this browser tab; public hosting
+          does not fall back to a server key, and the key is not written to logs.
         </p>
         <form id="connection-form" class="row">
           <label for="api-key">Alpha Vantage key</label>
@@ -35,7 +111,11 @@
       </section>
 
       <section class="panel" aria-labelledby="book-title">
-        <h2 id="book-title">Sample book</h2>
+        <h2 id="book-title">Portfolio</h2>
+        <p class="hint">
+          This portfolio is a fixed classroom tape: share counts and euro marks are invented sample figures. It is not a
+          brokerage account or a record of real holdings.
+        </p>
         <p id="book-disclaimer" class="hint"></p>
         <div class="table-wrap">
           <table>
@@ -52,7 +132,7 @@
             <tbody id="book-body"></tbody>
             <tfoot>
               <tr>
-                <th colspan="5">Sample notionals</th>
+                <th colspan="5">Portfolio notionals</th>
                 <th id="book-total"></th>
               </tr>
             </tfoot>
@@ -62,6 +142,10 @@
 
       <section class="panel" aria-labelledby="search-title">
         <h2 id="search-title">Search</h2>
+        <p class="hint">
+          Search asks Alpha Vantage for symbols that match a company name or ticker. The matches are lookup results,
+          not a recommendation.
+        </p>
         <form id="search-form" class="row">
           <label for="keywords">Keywords</label>
           <input id="keywords" name="keywords" type="search" maxlength="40" placeholder="nokia" />
@@ -72,7 +156,10 @@
 
       <section class="panel" aria-labelledby="quote-title">
         <h2 id="quote-title">Live quotes</h2>
-        <p class="hint">At most 20 tickers. Sample marks above stay on the page until a live quote returns.</p>
+        <p class="hint">
+          Live quotes are the latest prices Alpha Vantage returns for the tickers you enter. Prices can be delayed or
+          missing, and one request can include at most 20 tickers.
+        </p>
         <form id="quote-form" class="row">
           <label for="tickers">Tickers</label>
           <input id="tickers" name="tickers" type="text" value="SPCX, NOK, AIFS, QOMP, 4MMR" />
@@ -84,10 +171,14 @@
       <section class="panel" aria-labelledby="pillar-title">
         <h2 id="pillar-title">Stock Analyzer</h2>
         <p class="hint">
-          Replay uses invented fundamentals for SPCX, NOK, AIFS, QOMP, and 4MMR. Live mode reads Alpha Vantage
-          overview and statements for any symbol. Scores are teaching bands, not a buy or sell view.
+          Stock Analyzer scores one ticker on eight teaching pillars, from a live Alpha Vantage snapshot or from the
+          replay case for a sample ticker. The composite averages the pillars that have data and is not a buy or sell
+          view.
         </p>
-        <form id="analyze-form" class="row">
+        <div id="analyzer-locked" class="callout">
+          <p>Stock Analyzer is available on the Pro plan and to admin accounts. Log in and upgrade to score a ticker.</p>
+        </div>
+        <form id="analyze-form" class="row" hidden>
           <label for="analyze-ticker">Ticker</label>
           <input id="analyze-ticker" name="ticker" type="text" value="NOK" maxlength="12" />
           <button type="submit">Score live</button>
@@ -98,12 +189,56 @@
           <p id="score-composite"></p>
           <p id="score-disclaimer" class="hint"></p>
           <ol id="pillar-list"></ol>
+          <div id="watchlist-prompt" hidden>
+            <p class="ask">Add to watchlist?</p>
+            <form id="watch-add-form" class="row">
+              <label for="watch-note">Note</label>
+              <input id="watch-note" name="note" type="text" maxlength="280" placeholder="Optional note" />
+              <button type="submit">Add</button>
+              <button type="button" id="watch-skip" class="secondary">Not now</button>
+            </form>
+            <p id="watch-prompt-status" class="status" role="status"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="watch-title">
+        <h2 id="watch-title">Watchlist</h2>
+        <p class="hint">
+          The watchlist stores tickers you save after a score, with the latest composite, the previous composite, when
+          it last ran, and an optional note. Re-score runs only when you ask, using the Alpha Vantage key from this
+          browser.
+        </p>
+        <div id="watchlist-locked" class="callout">
+          <p>The watchlist is available on the Pro plan and to admin accounts. Log in and upgrade to save tickers.</p>
+        </div>
+        <div id="watchlist-app" hidden>
+          <div class="row">
+            <button type="button" id="reanalyze-all">Re-score all</button>
+          </div>
+          <div class="table-wrap">
+            <table class="plain-table">
+              <thead>
+                <tr>
+                  <th>Ticker</th>
+                  <th>Label</th>
+                  <th>Last</th>
+                  <th>Previous</th>
+                  <th>Last run</th>
+                  <th>Note</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="watch-body"></tbody>
+            </table>
+          </div>
+          <p id="watch-status" class="status" role="status"></p>
         </div>
       </section>
     </main>
 
     <footer>
-      <p>SI StockTool sample desk. Market data, when requested, is third-party and can be delayed or incomplete.</p>
+      <p>SI StockTool sample desk. Portfolio marks are fictional. Market data, when requested, is third-party and can be delayed or incomplete.</p>
     </footer>
     <script src="/app.js"></script>
   </body>

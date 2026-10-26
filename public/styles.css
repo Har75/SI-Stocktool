@@ -116,10 +116,51 @@ button:hover {
 
 button.secondary,
 #clear-key,
-#replay {
+#replay,
+#watch-skip {
   background: transparent;
   color: var(--pine);
   border: 1px solid var(--pine);
+}
+
+button.danger {
+  background: var(--clay);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.callout {
+  border: 1px dashed var(--line);
+  background: #f7f1e6;
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+  margin-top: 0.8rem;
+}
+
+.callout p,
+.ask {
+  margin: 0;
+}
+
+.ask {
+  margin-top: 0.9rem;
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+}
+
+.plain-table th,
+.plain-table td,
+.plain-table th:nth-child(n + 3),
+.plain-table td:nth-child(n + 3) {
+  text-align: left;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 
 .status {

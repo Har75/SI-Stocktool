@@ -44,6 +44,21 @@ async function withServer(app, fn) {
   }
 }
 
+async function signUp(url, email, password) {
+  const response = await fetch(`${url}/api/auth/signup`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = await response.json();
+  assert.equal(response.status, 201, JSON.stringify(body));
+  const cookie = response.headers
+    .getSetCookie()
+    .map((line) => line.split(";")[0])
+    .join("; ");
+  return { cookie, csrf: body.csrfToken, token: body.token, user: body.user };
+}
+
 function captureLogs() {
   const lines = [];
   const original = console.log;
@@ -77,7 +92,13 @@ test("health, helmet, and demo book", async () => {
     const page = await fetch(`${url}/`);
     assert.equal(page.status, 200);
     const html = await page.text();
-    assert.match(html, /Fictional play money|fictional/i);
+    assert.match(html, /fictional/i);
+    assert.match(html, /Portfolio/);
+    assert.match(html, /Portfolio notionals/);
+    assert.match(html, /Stock Analyzer/);
+    assert.match(html, /Add to watchlist\?/);
+    assert.match(html, /Live quotes are the latest prices/);
+    assert.equal(html.includes("Sample book"), false);
     const book = await fetch(`${url}/api/demo-book`);
     const body = await book.json();
     assert.equal(body.positions.length, 5);
@@ -148,7 +169,7 @@ test("development test-connection can use the local env key without echoing it",
 test("quotes cap and replay do not call upstream", async () => {
   let calls = 0;
   const app = createApp({
-    env: { NODE_ENV: "production" },
+    env: { NODE_ENV: "production", ADMIN_EMAIL: "desk-admin@example.com" },
     fetchImpl: async () => {
       calls += 1;
       return jsonResponse(quotePayload("NOK"));
@@ -178,9 +199,14 @@ test("quotes cap and replay do not call upstream", async () => {
     assert.equal(JSON.stringify(quoted).includes("client-key"), false);
     assert.equal(calls, 1);
 
+    const session = await signUp(url, "desk-admin@example.com", "correct-horse-1");
     const replay = await fetch(`${url}/api/analyze`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        cookie: session.cookie,
+        "x-csrf-token": session.csrf,
+      },
       body: JSON.stringify({ ticker: "NOK", replay: true }),
     });
     const scored = await replay.json();
