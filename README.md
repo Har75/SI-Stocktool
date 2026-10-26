@@ -1,6 +1,6 @@
 # SI StockTool
 
-Sample research desk: an Express server proxies Alpha Vantage for search, quotes, and Stock Analyzer, an eight-pillar case-study calculator. Accounts are email and password. Stock Analyzer and the watchlist require a Pro plan or an admin. The page also replays invented fundamentals for the sample tickers SPCX, NOK, AIFS, QOMP, and 4MMR.
+Sample research desk: an Express server proxies Alpha Vantage for search, quotes, and a Stock analyzer. Accounts are email and password. Stock Analyzer and the watchlist require a Pro plan or an admin. The page also replays invented fundamentals for the sample tickers SPCX, NOK, AIFS, QOMP, and 4MMR.
 
 The GitHub repo started as a README only. The earlier Origin draft `harald-jansen/tmp-938a47e733973959` was not readable from the environment that prepared this tree (git auth failed, and no local checkout was present). This tree follows that known shape: `src/server.js`, `public/`, `compose.yaml` publishing host port 80 to container port 4721, and a Docker image.
 
@@ -38,9 +38,9 @@ Replay mode scores the same five tickers from baked-in fundamentals and does not
 
 Signup and login use a bcrypt password hash and a session token. The browser gets an HTTP-only cookie. A weekly client can send `Authorization: Bearer` plus `x-api-key` to `POST /api/watchlist/reanalyze`. Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` so the admin account exists before the service is reachable. Stripe Checkout and the billing portal are documented in [DEPLOY.md](DEPLOY.md). Do not commit secrets.
 
-## Eight pillars
+## Stock Analyzer
 
-The calculator scores profitability, capital returns, revenue growth, earnings growth, balance sheet, cash generation, shareholder alignment, and valuation. Each band is 0–100. The composite is the average of pillars that have data. The score is a teaching device for case studies.
+The Stock analyzer scores eight dimensions: profitability, capital returns, revenue growth, earnings growth, balance sheet, cash generation, shareholder alignment, and valuation. Each band is 0–100. The composite is the average of dimensions that have data. The score is a teaching device for case studies.
 
 ## Hosting
 

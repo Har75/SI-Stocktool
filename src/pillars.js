@@ -1,7 +1,7 @@
 /**
- * Eight-pillar case-study calculator.
- * Scores are coarse educational bands (0–100), shared by live Alpha Vantage
- * snapshots and the offline replay fixtures.
+ * Stock analyzer case-study scores.
+ * Eight educational bands (0–100), shared by live Alpha Vantage snapshots
+ * and the offline replay fixtures.
  */
 
 const HIGH = [

@@ -36,7 +36,7 @@ test("NOK replay composite stays on the published bands", () => {
   assert.equal(scored.composite, 69);
 });
 
-test("alpha vantage statements map into the same calculator", () => {
+test("alpha vantage statements map into the same Stock analyzer scores", () => {
   const fundamentals = fundamentalsFromAlphaVantage({
     overview: {
       Name: "Sample Co",

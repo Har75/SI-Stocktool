@@ -2,7 +2,7 @@
   "name": "si-stocktool",
   "version": "1.0.0",
   "private": true,
-  "description": "Sample stock research desk: Express proxy, quotes, and an 8-pillar case-study calculator.",
+  "description": "Sample stock research desk: Express proxy, quotes, and a Stock analyzer.",
   "type": "module",
   "engines": {
     "node": ">=20"
