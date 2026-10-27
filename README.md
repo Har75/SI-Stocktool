@@ -30,7 +30,13 @@ Compose maps `80:4721` and sets `NODE_ENV=development` so the env key can fill i
 
 ## Portfolio
 
-The Portfolio section is a fictional tape with small invented euro marks. The marks are a sample, not a statement of holdings. Search and live quotes stay available without an account.
+The Portfolio tab stores holdings for the signed-in user. It is not behind Pro. The default is a percentage of the portfolio, so the account never needs a total value. Percentages may add up to less than 100%. A sum above 100% is rejected.
+
+A share count is optional. The browser encrypts it with AES-GCM before save. The key is derived with PBKDF2 from a portfolio PIN that stays in the browser tab. The server stores ciphertext and a salt only. It does not have the PIN, a master key, or a recovery key. Forgetting the PIN makes those share counts unrecoverable. Resetting the account password does not bring them back, because the account password is not the encryption key.
+
+`GET /api/portfolio/weights` returns percent weights only. Weekly re-score and other bot calls should use that. `POST /api/watchlist/reanalyze` rejects share counts and ciphertext. The Pro chart (`Vandaag`, `Laatste week`, `Laatste maand`, `Laatste 3 maanden`, `Laatste 6 maanden`) is drawn in the browser. Percent holdings become an index that starts at 100. Decrypted share counts become quantity times price, with no invented euro total. Price history uses the browser Alpha Vantage key via `POST /api/series`.
+
+`/api/demo-book` is still the fictional sample tape for Stock Analyzer fixtures. It is not the signed-in portfolio. Search and live quotes stay available without an account.
 
 Replay mode scores the same five tickers from baked-in fundamentals and does not call Alpha Vantage. Live mode needs a browser-supplied key when `NODE_ENV=production`. Both replay and live Stock Analyzer calls require a signed-in Pro user or an admin. After a score, the page asks “Add to watchlist?”. The watchlist is stored on the server for that user.
 
@@ -48,7 +54,7 @@ See [DEPLOY.md](DEPLOY.md) for Render and Fly. This repository does not deploy i
 
 Production behavior:
 
-- Rate limits per IP: search 60/min, quotes 30/min, analyze 10/min, test-connection 10/min, signup 5/min, login 10/min, watchlist 30/min, re-score 10/min.
+- Rate limits per IP: search 60/min, quotes 30/min, analyze 10/min, test-connection 10/min, signup 5/min, login 10/min, watchlist 30/min, portfolio 30/min, series 10/min, re-score 10/min.
 - `/api/quotes` accepts at most 20 tickers.
 - Helmet security headers, and CORS limited to same-origin unless `ALLOWED_ORIGIN` is set.
 - Request logs are method, path, and status only. Bodies and keys are not logged.

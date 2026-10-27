@@ -6,7 +6,7 @@ import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import Stripe from "stripe";
-import { alphaVantage, quoteFromGlobal, searchMatches, upstreamProblem } from "./alphavantage.js";
+import { alphaVantage, quoteFromGlobal, searchMatches, seriesCloses, upstreamProblem } from "./alphavantage.js";
 import {
   bcryptCost,
   clearSessionCookie,
@@ -37,6 +37,16 @@ import {
 } from "./http-security.js";
 import { fundamentalsFromAlphaVantage, scorePillars } from "./pillars.js";
 import { FileStore, MemoryStore } from "./store.js";
+import {
+  addHolding,
+  anonymousWeights,
+  emptyPortfolio,
+  parseHoldingBody,
+  portfolioMaterialError,
+  presentPortfolio,
+  removeHolding,
+  updateHolding,
+} from "./portfolio.js";
 import { MAX_WATCHLIST, applyRescore, cleanText, parseComposite, publicWatchItem, upsertWatchItem } from "./watchlist.js";
 
 const publicDir = join(dirname(fileURLToPath(import.meta.url)), "..", "public");
@@ -230,6 +240,8 @@ export function createApp({
   const signupLimiter = apiLimiter(env, "RATE_LIMIT_SIGNUP", 5);
   const loginLimiter = apiLimiter(env, "RATE_LIMIT_LOGIN", 10);
   const watchlistLimiter = apiLimiter(env, "RATE_LIMIT_WATCHLIST", 30);
+  const portfolioLimiter = apiLimiter(env, "RATE_LIMIT_PORTFOLIO", 30);
+  const seriesLimiter = apiLimiter(env, "RATE_LIMIT_SERIES", 10);
   const reanalyzeLimiter = apiLimiter(env, "RATE_LIMIT_REANALYZE", 10);
   const adminLimiter = apiLimiter(env, "RATE_LIMIT_ADMIN", 30);
   const billingLimiter = apiLimiter(env, "RATE_LIMIT_BILLING", 10);
@@ -567,6 +579,156 @@ export function createApp({
     }
   });
 
+  function rejectHolding(res, result) {
+    noStore(res);
+    res.status(result.status || 400).json({ error: result.error });
+  }
+
+  app.get("/api/portfolio/weights", portfolioLimiter, async (req, res) => {
+    const auth = await gate(req, res);
+    if (!auth) return;
+    const state = await store.read();
+    noStore(res);
+    res.json(anonymousWeights(state.portfolios[auth.user.id] || emptyPortfolio()));
+  });
+
+  app.get("/api/portfolio", portfolioLimiter, async (req, res) => {
+    const auth = await gate(req, res);
+    if (!auth) return;
+    const state = await store.read();
+    noStore(res);
+    res.json(presentPortfolio(state.portfolios[auth.user.id] || emptyPortfolio()));
+  });
+
+  app.post("/api/portfolio", portfolioLimiter, async (req, res) => {
+    const auth = await gate(req, res, { csrf: true });
+    if (!auth) return;
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+    const parsed = parseHoldingBody(body);
+    if (parsed.error) {
+      rejectHolding(res, parsed);
+      return;
+    }
+    const saved = await store.update((state) => {
+      const current = state.portfolios[auth.user.id] || emptyPortfolio();
+      const result = addHolding(current, parsed.input);
+      if (result.error) return result;
+      state.portfolios[auth.user.id] = result.record;
+      return presentPortfolio(result.record, result.item);
+    });
+    if (saved.error) {
+      rejectHolding(res, saved);
+      return;
+    }
+    noStore(res);
+    res.status(201).json(saved);
+  });
+
+  app.patch("/api/portfolio/:ticker", portfolioLimiter, async (req, res) => {
+    const auth = await gate(req, res, { csrf: true });
+    if (!auth) return;
+    const ticker = normalizeTicker(req.params.ticker);
+    if (!ticker) {
+      res.status(400).json({ error: "ticker is required" });
+      return;
+    }
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+    const parsed = parseHoldingBody(body, ticker);
+    if (parsed.error) {
+      rejectHolding(res, parsed);
+      return;
+    }
+    const saved = await store.update((state) => {
+      const current = state.portfolios[auth.user.id] || emptyPortfolio();
+      const result = updateHolding(current, ticker, parsed.input);
+      if (result.error) return result;
+      state.portfolios[auth.user.id] = result.record;
+      return presentPortfolio(result.record, result.item);
+    });
+    if (saved.error) {
+      rejectHolding(res, saved);
+      return;
+    }
+    noStore(res);
+    res.json(saved);
+  });
+
+  app.delete("/api/portfolio/:ticker", portfolioLimiter, async (req, res) => {
+    const auth = await gate(req, res, { csrf: true });
+    if (!auth) return;
+    const ticker = normalizeTicker(req.params.ticker);
+    if (!ticker) {
+      res.status(400).json({ error: "ticker is required" });
+      return;
+    }
+    const saved = await store.update((state) => {
+      const current = state.portfolios[auth.user.id] || emptyPortfolio();
+      const result = removeHolding(current, ticker);
+      if (result.error) return result;
+      state.portfolios[auth.user.id] = result.record;
+      return presentPortfolio(result.record);
+    });
+    if (saved.error) {
+      rejectHolding(res, saved);
+      return;
+    }
+    noStore(res);
+    res.json(saved);
+  });
+
+  app.post("/api/series", seriesLimiter, async (req, res) => {
+    const auth = await gate(req, res, { pro: true, csrf: true });
+    if (!auth) return;
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+    const material = portfolioMaterialError(body);
+    if (material) {
+      rejectHolding(res, material);
+      return;
+    }
+    const span = body.span === "intraday" || body.span === "daily" ? body.span : "";
+    if (!span) {
+      res.status(400).json({ error: "span must be intraday or daily" });
+      return;
+    }
+    const normalized = normalizeTickers(body.tickers);
+    if (normalized.error) {
+      res.status(400).json({ error: normalized.error });
+      return;
+    }
+    if (normalized.tickers.length > 10) {
+      res.status(400).json({ error: "series accepts at most 10 tickers" });
+      return;
+    }
+    const resolved = resolveApiKey(req, env);
+    if (!requireKey(res, resolved)) return;
+    const series = [];
+    const seriesKey = span === "daily" ? "Time Series (Daily)" : "Time Series (15min)";
+    for (const ticker of normalized.tickers) {
+      try {
+        const params =
+          span === "daily"
+            ? { function: "TIME_SERIES_DAILY", symbol: ticker, outputsize: "full" }
+            : { function: "TIME_SERIES_INTRADAY", symbol: ticker, interval: "15min", outputsize: "compact" };
+        const payload = await alphaVantage(fetchImpl, resolved.key, params);
+        const points = seriesCloses(payload, seriesKey, span === "daily" ? 160 : 200);
+        if (!points.length) {
+          const problem = upstreamProblem(payload);
+          series.push({
+            ticker,
+            error: scrub(problem || "No series returned", resolved.key).slice(0, 300),
+          });
+        } else {
+          series.push({ ticker, points });
+        }
+      } catch {
+        console.log(JSON.stringify({ msg: "upstream failed", path: req.path }));
+        series.push({ ticker, error: "Upstream request failed" });
+      }
+    }
+    noStore(res);
+    res.json({ span, series });
+  });
+
   app.get("/api/watchlist", watchlistLimiter, async (req, res) => {
     const auth = await gate(req, res, { pro: true });
     if (!auth) return;
@@ -652,6 +814,11 @@ export function createApp({
     const auth = await gate(req, res, { pro: true, csrf: true });
     if (!auth) return;
     const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+    const material = portfolioMaterialError(body);
+    if (material) {
+      rejectHolding(res, material);
+      return;
+    }
     if (body.all != null && body.all !== true && body.all !== false) {
       res.status(400).json({ error: "all must be a boolean" });
       return;

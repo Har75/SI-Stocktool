@@ -56,7 +56,7 @@ Put the printed `whsec_` value in `STRIPE_WEBHOOK_SECRET` and start the server a
 
 `npm start` does not load `.env` by itself. Use `node --env-file=.env` locally. Docker Compose reads a local `.env` for the variables listed in `compose.yaml` and still sets `NODE_ENV=development`.
 
-Open `http://127.0.0.1:4721`. The Portfolio section is the fictional tape. Replay `NOK` after you are Pro or admin. A quotes request with 21 tickers returns HTTP 400.
+Open `http://127.0.0.1:4721`. Portfolio stores percentages for the signed-in user, and share counts only as ciphertext. Replay `NOK` after you are Pro or admin. A quotes request with 21 tickers returns HTTP 400. The Pro chart reads `POST /api/series` with the browser key. Weekly jobs that need portfolio context should call `GET /api/portfolio/weights`, which returns weights only.
 
 ## Threat notes
 
@@ -64,10 +64,11 @@ Open `http://127.0.0.1:4721`. The Portfolio section is the fictional tape. Repla
 - Session tokens are random and stored as SHA-256. The cookie is `HttpOnly`, `SameSite=Lax`, and `Secure` when `NODE_ENV=production`. `COOKIE_SECURE=0` turns Secure off; do not set that on a public host.
 - Cookie-authenticated POST, DELETE, and other changes require `x-csrf-token` from `/api/auth/me` or login. Bearer clients skip that header because the browser will not attach a bearer token on its own.
 - Login JSON includes `token` for the weekly client. The page keeps the cookie and does not save the token. CSP allows scripts only from this origin.
-- Stock Analyzer (live and replay) and every watchlist route check the signed-in user on the server. A free plan is rejected even if the page is modified. Admin routes require `role=admin`.
+- Stock Analyzer (live and replay), the price-series chart, and every watchlist route check the signed-in user on the server. A free plan is rejected even if the page is modified. Portfolio list, add, update, and delete require a signed-in user and do not require Pro. Admin routes require `role=admin`.
+- Portfolio share counts are client-encrypted (AES-GCM, PIN-derived PBKDF2). The server stores ciphertext and the salt. It never stores or logs a plaintext quantity, and it has no key to decrypt one. There is no recovery key: a lost PIN or an account-password reset does not restore share counts. Re-score rejects portfolio material. `GET /api/portfolio/weights` is the bot-facing view and contains weights only.
 - Stripe webhooks require a verified signature. Card data is not read or logged. Logs are method, path, status, and a short event type.
 - Request bodies, API keys, passwords, session tokens, and webhook payloads are not logged. Upstream errors are scrubbed of the client key.
-- Rate limits cover search, quotes, analyze, test-connection, signup, login, watchlist, re-score, admin, billing, and the webhook.
+- Rate limits cover search, quotes, analyze, test-connection, signup, login, watchlist, portfolio, series, re-score, admin, billing, and the webhook.
 - The store writes JSON by replace-via-temp-file with mode `0600`. Paths are not taken from requests. Tickers are capped (20 quotes, 20 watchlist names) and fields have length limits.
 - Helmet stays on, including a locked content security policy. CORS stays same-origin unless `ALLOWED_ORIGIN` is set, and that list does not enable cookie credentials.
 - No Alpha Vantage key, Stripe secret, or admin password is copied into the image.
