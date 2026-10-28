@@ -45,8 +45,14 @@ test("desk sections are separate tabs", () => {
   assert.doesNotMatch(account, /id="api-key"[^>]*\svalue=/);
 
   const portfolio = between('id="view-portfolio"', 'id="view-search"');
-  assert.match(portfolio, /id="book-body"/);
-  assert.match(portfolio, /invented sample figures/);
+  assert.match(portfolio, /id="portfolio-body"/);
+  assert.match(portfolio, /id="portfolio-form"/);
+  assert.match(portfolio, /id="portfolio-pin-input"/);
+  assert.match(portfolio, /herstelsleutel/);
+  assert.match(portfolio, /<option value="percent" selected>Percentage<\/option>/);
+  const ranges = [...portfolio.matchAll(/<button[^>]*data-range="[^"]+"[^>]*>([^<]+)<\/button>/g)].map((match) => match[1]);
+  assert.deepEqual(ranges, ["Vandaag", "Laatste week", "Laatste maand", "Laatste 3 maanden", "Laatste 6 maanden"]);
+  assert.match(html, /type="module"\s+src="\/app.js"/);
 
   assert.match(between('id="view-search"', 'id="view-quotes"'), /id="search-form"/);
   assert.match(between('id="view-quotes"', 'id="view-analyzer"'), /at most 20 tickers/);
@@ -72,6 +78,9 @@ test("the client does not embed a shared Alpha Vantage key", () => {
   assert.doesNotMatch(html, /<input[^>]*id="api-key"[^>]*value=/);
   assert.match(app, /sessionStorage\.getItem\(KEY_STORAGE\)/);
   assert.match(app, /headers\["x-api-key"\] = key/);
+  assert.match(app, /quantityCipher/);
+  assert.doesNotMatch(app, /body\.quantity\s*=/);
+  assert.match(app, /PIN_STORAGE/);
   assert.match(app, /setAdminTab\(false\)/);
   assert.match(app, /setAdminTab\(true\)/);
   assert.match(css, /\[hidden\]\s*\{[^}]*display:\s*none\s*!important/s);

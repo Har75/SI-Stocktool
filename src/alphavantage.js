@@ -44,6 +44,21 @@ export function quoteFromGlobal(payload, fallbackSymbol) {
   };
 }
 
+export function seriesCloses(payload, key, limit = 160) {
+  const table = payload?.[key];
+  if (!table || typeof table !== "object" || Array.isArray(table)) return [];
+  const points = [];
+  for (const [stamp, row] of Object.entries(table)) {
+    if (!/^\d{4}-\d{2}-\d{2}(?:\s\d{2}:\d{2}:\d{2})?$/.test(stamp)) continue;
+    const close = Number(row?.["4. close"]);
+    if (!Number.isFinite(close) || close < 0) continue;
+    points.push({ t: stamp, close });
+  }
+  points.sort((left, right) => (left.t < right.t ? -1 : left.t > right.t ? 1 : 0));
+  const cap = Math.max(1, Math.min(limit, 400));
+  return points.slice(-cap);
+}
+
 export function searchMatches(payload) {
   const rows = Array.isArray(payload?.bestMatches) ? payload.bestMatches : [];
   return rows.slice(0, 10).map((row) => ({

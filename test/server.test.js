@@ -92,9 +92,10 @@ test("health, helmet, and demo book", async () => {
     const page = await fetch(`${url}/`);
     assert.equal(page.status, 200);
     const html = await page.text();
-    assert.match(html, /fictional/i);
     assert.match(html, /Portfolio/);
-    assert.match(html, /Portfolio notionals/);
+    assert.match(html, /Portefeuille/);
+    assert.match(html, /Laatste 3 maanden/);
+    assert.doesNotMatch(html, /Portfolio notionals/);
     assert.match(html, /Stock Analyzer/);
     assert.match(html, /Add to watchlist\?/);
     assert.match(html, /Live quotes are the latest prices/);

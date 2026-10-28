@@ -145,7 +145,8 @@ label {
   color: var(--muted);
 }
 
-input {
+input,
+select {
   flex: 1 1 220px;
   border: 1px solid var(--line);
   background: #fff;
@@ -153,6 +154,10 @@ input {
   border-radius: 10px;
   padding: 0.7rem 0.8rem;
   font: 1rem/1.2 "Avenir Next", "Segoe UI", sans-serif;
+}
+
+input:read-only {
+  background: #f6f1e8;
 }
 
 button {
@@ -290,6 +295,33 @@ td:nth-child(n + 3) {
 .composite {
   font-size: 1.4rem;
   color: var(--pine);
+}
+
+.range-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.8rem;
+}
+
+.range-list button {
+  background: transparent;
+  color: var(--pine);
+  border: 1px solid var(--pine);
+}
+
+.range-list button[aria-pressed="true"] {
+  background: var(--pine);
+  color: #f7f3ea;
+}
+
+#portfolio-chart-svg {
+  width: 100%;
+  height: auto;
+  margin-top: 0.6rem;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
 }
 
 footer {
